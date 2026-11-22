@@ -1,6 +1,9 @@
 
 import 'package:flutter/material.dart';
 
+import '../models/task_model.dart';
+import '../services/database_service.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -13,26 +16,39 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color dark = Color(0xFF252525);
   static const Color gray = Color(0xFF888888);
 
-  List<Map<String, dynamic>> tasks = [
-    {
-      'title': 'Do laundry',
-      'category': 'Chore',
-      'isComplete': false,
-    },
-    {
-      'title': 'Buy groceries',
-      'category': 'Shopping',
-      'isComplete': true,
-    },
-    {
-      'title': 'Finish assignment',
-      'category': 'Academics',
-      'isComplete': false,
-    },
-  ];
+  List<Task> tasks = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadTasks();
+  }
+
+  // Load tasks from SQLite
+  Future<void> loadTasks() async {
+    try {
+      final loadedTasks = await DatabaseService.instance.getTasks();
+
+      if (!mounted) return;
+
+      setState(() {
+        tasks = loadedTasks;
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+      });
+
+      showMessage('Unable to load tasks: $e');
+    }
+  }
 
   int get completedTasks {
-    return tasks.where((task) => task['isComplete'] == true).length;
+    return tasks.where((task) => task.isComplete).length;
   }
 
   double get progress {
@@ -41,6 +57,13 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return completedTasks / tasks.length;
+  }
+
+  // Show a message
+  void showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -169,27 +192,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
               // Task list
               Expanded(
-                child: tasks.isEmpty
+                child: isLoading
                     ? const Center(
-                        child: Text(
-                          'No tasks yet. Add your first task!',
-                          style: TextStyle(
-                            color: gray,
-                            fontSize: 14,
-                          ),
+                        child: CircularProgressIndicator(
+                          color: green,
                         ),
                       )
-                    : ListView.builder(
-                        itemCount: tasks.length,
-                        itemBuilder: (context, index) {
-                          return taskCard(
-                            tasks[index]['title'],
-                            tasks[index]['category'],
-                            tasks[index]['isComplete'],
-                            index,
-                          );
-                        },
-                      ),
+                    : tasks.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No tasks yet. Add your first task!',
+                              style: TextStyle(
+                                color: gray,
+                                fontSize: 14,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: tasks.length,
+                            itemBuilder: (context, index) {
+                              return taskCard(tasks[index], index);
+                            },
+                          ),
               ),
             ],
           ),
@@ -209,173 +233,433 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // Add task dialog
-  void showAddTaskDialog() {
-    TextEditingController titleController = TextEditingController();
+  Future<void> showAddTaskDialog() async {
+    final titleController = TextEditingController();
     String selectedCategory = 'Personal';
+    DateTime? selectedDueDate;
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Add New Task'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Task title',
-                      border: OutlineInputBorder(),
+    try {
+      final newTask = await showDialog<Task>(
+        context: context,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                title: const Text('Add New Task'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Task title',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 15),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedCategory,
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                      border: OutlineInputBorder(),
+                    const SizedBox(height: 15),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedCategory,
+                      decoration: const InputDecoration(
+                        labelText: 'Category',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        'Personal',
+                        'School',
+                        'Chore',
+                        'Shopping',
+                      ].map((category) {
+                        return DropdownMenuItem(
+                          value: category,
+                          child: Text(category),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() {
+                            selectedCategory = value;
+                          });
+                        }
+                      },
                     ),
-                    items: [
-                      'Personal',
-                      'School',
-                      'Chore',
-                      'Shopping',
-                    ].map((category) {
-                      return DropdownMenuItem(
-                        value: category,
-                        child: Text(category),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setDialogState(() {
-                          selectedCategory = value;
-                        });
-                      }
+                    const SizedBox(height: 15),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            selectedDueDate == null
+                                ? 'No due date selected'
+                                : 'Due: ${selectedDueDate!.day}/${selectedDueDate!.month}/${selectedDueDate!.year}',
+                            style: const TextStyle(
+                              color: gray,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            final pickedDate = await showDatePicker(
+                              context: dialogContext,
+                              initialDate: selectedDueDate ?? DateTime.now(),
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2100),
+                            );
+
+                            if (pickedDate != null) {
+                              setDialogState(() {
+                                selectedDueDate = pickedDate;
+                              });
+                            }
+                          },
+                          child: const Text('Choose Date'),
+                        ),
+                      ],
+                    ),
+                    if (selectedDueDate != null)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            setDialogState(() {
+                              selectedDueDate = null;
+                            });
+                          },
+                          child: const Text('Remove Date'),
+                        ),
+                      ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
                     },
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: green,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      if (titleController.text.trim().isEmpty) {
+                        return;
+                      }
+
+                      final task = Task(
+                        title: titleController.text.trim(),
+                        category: selectedCategory,
+                        dueDate: selectedDueDate,
+                      );
+
+                      Navigator.pop(dialogContext, task);
+                    },
+                    child: const Text('Add Task'),
                   ),
                 ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    titleController.dispose();
-                  },
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: green,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () {
-                    if (titleController.text.trim().isNotEmpty) {
-                      setState(() {
-                        tasks.add({
-                          'title': titleController.text.trim(),
-                          'category': selectedCategory,
-                          'isComplete': false,
-                        });
-                      });
+              );
+            },
+          );
+        },
+      );
 
-                      Navigator.pop(context);
-                      titleController.dispose();
-                    }
-                  },
-                  child: const Text('Add Task'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+      if (newTask != null) {
+        await DatabaseService.instance.insertTask(newTask);
+        await loadTasks();
+
+        if (!mounted) return;
+        showMessage('Task added successfully!');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      showMessage('Unable to add task: $e');
+    } finally {
+      titleController.dispose();
+    }
   }
 
-Widget taskCard(String title, String category, bool isComplete, int index) {
-  return Container(
-    margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Row(
-      children: [
-        GestureDetector(
-          onTap: () {
-            toggleTask(index);
-          },
-          child: Icon(
-            isComplete
-                ? Icons.check_circle
-                : Icons.circle_outlined,
-            color: isComplete ? green : gray,
-            size: 24,
+  // Edit task dialog
+  Future<void> showEditTaskDialog(int index) async {
+    final task = tasks[index];
+    final titleController = TextEditingController(text: task.title);
+    String selectedCategory = task.category;
+    DateTime? selectedDueDate = task.dueDate;
+
+    try {
+      final updatedTask = await showDialog<Task>(
+        context: context,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                title: const Text('Edit Task'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Task title',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedCategory,
+                      decoration: const InputDecoration(
+                        labelText: 'Category',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        'Personal',
+                        'School',
+                        'Chore',
+                        'Shopping',
+                      ].map((category) {
+                        return DropdownMenuItem(
+                          value: category,
+                          child: Text(category),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() {
+                            selectedCategory = value;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 15),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            selectedDueDate == null
+                                ? 'No due date selected'
+                                : 'Due: ${selectedDueDate!.day}/${selectedDueDate!.month}/${selectedDueDate!.year}',
+                            style: const TextStyle(
+                              color: gray,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            final pickedDate = await showDatePicker(
+                              context: dialogContext,
+                              initialDate: selectedDueDate ?? DateTime.now(),
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2100),
+                            );
+
+                            if (pickedDate != null) {
+                              setDialogState(() {
+                                selectedDueDate = pickedDate;
+                              });
+                            }
+                          },
+                          child: const Text('Choose Date'),
+                        ),
+                      ],
+                    ),
+                    if (selectedDueDate != null)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            setDialogState(() {
+                              selectedDueDate = null;
+                            });
+                          },
+                          child: const Text('Remove Date'),
+                        ),
+                      ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
+                    },
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: green,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      if (titleController.text.trim().isEmpty) {
+                        return;
+                      }
+
+                      final updatedTask = Task(
+                        id: task.id,
+                        title: titleController.text.trim(),
+                        category: selectedCategory,
+                        isComplete: task.isComplete,
+                        dueDate: selectedDueDate,
+                      );
+
+                      Navigator.pop(dialogContext, updatedTask);
+                    },
+                    child: const Text('Save Changes'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+
+      if (updatedTask != null) {
+        await DatabaseService.instance.updateTask(updatedTask);
+        await loadTasks();
+
+        if (!mounted) return;
+        showMessage('Task updated successfully!');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      showMessage('Unable to update task: $e');
+    } finally {
+      titleController.dispose();
+    }
+  }
+
+  // Task card
+  Widget taskCard(Task task, int index) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () {
+              toggleTask(index);
+            },
+            child: Icon(
+              task.isComplete
+                  ? Icons.check_circle
+                  : Icons.circle_outlined,
+              color: task.isComplete ? green : gray,
+              size: 24,
+            ),
           ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: dark,
-                  decoration: isComplete
-                      ? TextDecoration.lineThrough
-                      : TextDecoration.none,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: dark,
+                    decoration: task.isComplete
+                        ? TextDecoration.lineThrough
+                        : TextDecoration.none,
+                  ),
                 ),
+                const SizedBox(height: 5),
+                Text(
+                  task.category,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: gray,
+                  ),
+                ),
+                if(task.dueDate != null) ...[
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.calendar_today_outlined,
+                        size: 13,
+                        color: gray,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Due: ${task.dueDate!.day}/${task.dueDate!.month}/${task.dueDate!.year}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: gray,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+              ],
+            ),
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(
+              Icons.more_horiz,
+              color: gray,
+            ),
+            onSelected: (value) {
+              if (value == 'edit') {
+                showEditTaskDialog(index);
+              } else if (value == 'delete') {
+                deleteTask(index);
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: Text('Edit Task'),
               ),
-              const SizedBox(height: 5),
-              Text(
-                category,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: gray,
-                ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Text('Delete Task'),
               ),
             ],
           ),
-        ),
-        PopupMenuButton<String>(
-          icon: const Icon(
-            Icons.more_horiz,
-            color: gray,
-          ),
-          onSelected: (value) {
-            if (value == 'delete') {
-              deleteTask(index);
-            }
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'delete',
-              child: Text('Delete Task'),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
-void toggleTask(int index) {
-  setState(() {
-    tasks[index]['isComplete'] = !tasks[index]['isComplete'];
-  });
-}
+  // Toggle task completion
+  Future<void> toggleTask(int index) async {
+    final task = tasks[index];
 
-void deleteTask(int index) {
-  setState(() {
-    tasks.removeAt(index);
-  });
-}
+    final updatedTask = Task(
+      id: task.id,
+      title: task.title,
+      category: task.category,
+      isComplete: !task.isComplete,
+      dueDate: task.dueDate,
+    );
 
+    try {
+      await DatabaseService.instance.updateTask(updatedTask);
+      await loadTasks();
+    } catch (e) {
+      if (!mounted) return;
+      showMessage('Unable to update task: $e');
+    }
+  }
+
+  // Delete task
+  Future<void> deleteTask(int index) async {
+    final task = tasks[index];
+
+    try {
+      await DatabaseService.instance.deleteTask(task.id!);
+      await loadTasks();
+
+      if (!mounted) return;
+      showMessage('Task deleted successfully!');
+    } catch (e) {
+      if (!mounted) return;
+      showMessage('Unable to delete task: $e');
+    }
+  }
 }
