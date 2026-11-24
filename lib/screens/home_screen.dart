@@ -1,4 +1,7 @@
 
+import 'package:doityurself0/screens/calendar_screen.dart';
+import 'package:doityurself0/screens/daily_agenda_screen.dart';
+import 'package:doityurself0/screens/statistics_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../models/task_model.dart';
@@ -17,7 +20,59 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color gray = Color(0xFF888888);
 
   List<Task> tasks = [];
+  String selectedSort = 'High to Low';
+  String searchQuery = '';
+  String selectedCategory = 'All';
   bool isLoading = true;
+
+  int priorityRank(String priority) {
+    if(priority == 'High') {
+      return 1;
+    } else if (priority == 'Medium') {
+      return 2;
+    } else {
+      return 3;
+    }
+  }
+
+List<int> get sortedTaskIndexes {
+  final indexes = List.generate(tasks.length, (index) => index);
+
+  indexes.removeWhere((index) {
+    final task = tasks[index];
+    final query = searchQuery.toLowerCase().trim();
+
+    final matchesSearch = 
+        task.title.toLowerCase().contains(query) || 
+        task.description.toLowerCase().contains(query);
+    
+    final matchesCategory = 
+        selectedCategory == 'All' ||
+        task.category == selectedCategory;
+    
+    return !matchesSearch || !matchesCategory;
+  });
+
+  indexes.sort((a, b) {
+    if (selectedSort == 'Default') {
+      return a.compareTo(b);
+    }
+
+    final comparison = priorityRank(
+      tasks[a].priority,
+    ).compareTo(
+      priorityRank(tasks[b].priority),
+    );
+
+    if (selectedSort == 'Low to High') {
+      return -comparison;
+    } else {
+      return comparison;
+    }
+  });
+
+  return indexes;
+}
 
   @override
   void initState() {
@@ -80,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
@@ -91,26 +146,85 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       SizedBox(height: 5),
-                      Text(
+                        Text(
                         'My Tasks',
-                        style: TextStyle(
-                          fontSize: 28,
+                        style: const TextStyle(
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: dark,
                         ),
                       ),
                     ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(
-                      Icons.calendar_today_outlined,
-                      color: green,
-                    ),
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const DailyAgendaScreen(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.today_outlined,
+                            color: green,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const CalendarScreen(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.calendar_month_outlined,
+                            color: green,
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const StatisticsScreen(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.bar_chart,
+                            color: green,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -178,18 +292,116 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: dark,
                     ),
                   ),
-                  Text(
-                    '${tasks.length} Tasks',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: gray,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${sortedTaskIndexes.length} Tasks',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: gray,
+                        ),
+                      ),
+
+                      PopupMenuButton<String>(
+                        icon: const Icon(
+                          Icons.keyboard_arrow_down,
+                          color: gray,
+                          size: 22,
+                        ),
+                        tooltip: 'Sort tasks',
+                        onSelected: (value) {
+                          setState(() {
+                            selectedSort = value;
+                          });
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'High to Low',
+                            child: Text('High to Low'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'Low to High',
+                            child: Text('Low to High'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'Default',
+                            child: Text('Default'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ],
               ),
 
               const SizedBox(height: 18),
 
+              // Search bar
+              TextField(
+                onChanged: (value) {
+                  setState(() {
+                    searchQuery = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search tasks...',
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: gray,
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 14,
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 12),
+
+              //Category filters
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    'All',
+                    'Personal',
+                    'School',
+                    'Chore',
+                    'Shopping',
+                  ].map((category) {
+                    final isSelected = selectedCategory == category;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(category),
+                        selected: isSelected,
+                        selectedColor: green,
+                        backgroundColor: Colors.white,
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.white : dark,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        onSelected: (selected){
+                          setState(() {
+                            selectedCategory = category;
+                          });
+                        },
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+
+              const SizedBox(height: 15),
+              
               // Task list
               Expanded(
                 child: isLoading
@@ -209,9 +421,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           )
                         : ListView.builder(
-                            itemCount: tasks.length,
+                            itemCount: sortedTaskIndexes.length,
                             itemBuilder: (context, index) {
-                              return taskCard(tasks[index], index);
+                              final taskIndex = sortedTaskIndexes[index];
+
+                              return taskCard(tasks[taskIndex], taskIndex);
                             },
                           ),
               ),
@@ -233,156 +447,209 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // Add task dialog
-  Future<void> showAddTaskDialog() async {
-    final titleController = TextEditingController();
-    String selectedCategory = 'Personal';
-    DateTime? selectedDueDate;
 
-    try {
-      final newTask = await showDialog<Task>(
-        context: context,
-        builder: (dialogContext) {
-          return StatefulBuilder(
-            builder: (context, setDialogState) {
-              return AlertDialog(
-                title: const Text('Add New Task'),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: titleController,
-                      decoration: const InputDecoration(
-                        labelText: 'Task title',
-                        border: OutlineInputBorder(),
-                      ),
+Future<void> showAddTaskDialog() async {
+  String taskTitle = '';
+  String taskDescription = '';
+  String selectedCategory = 'Personal';
+  String selectedPriority = 'Medium';
+  DateTime? selectedDueDate;
+  
+
+  try {
+    final newTask = await showDialog<Task>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Add New Task'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    decoration: const InputDecoration(
+                      labelText: 'Task title',
+                      border: OutlineInputBorder(),
                     ),
-                    const SizedBox(height: 15),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedCategory,
+                    onChanged: (value) {
+                      taskTitle = value;
+                    },
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedCategory,
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      'Personal',
+                      'School',
+                      'Chore',
+                      'Shopping',
+                    ].map((category) {
+                      return DropdownMenuItem(
+                        value: category,
+                        child: Text(category),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() {
+                          selectedCategory = value;
+                        });
+                      }
+                    },
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  TextField(
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Description (Optional)',
+                      hintText: 'Enter task details...',
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                    onChanged: (value) {
+                      taskDescription = value;
+                    },
+                  ),
+
+                  const SizedBox(height: 15),
+                                      DropdownButtonFormField<String>(
+                      initialValue: selectedPriority,
                       decoration: const InputDecoration(
-                        labelText: 'Category',
+                        labelText: 'Priority',
                         border: OutlineInputBorder(),
                       ),
                       items: [
-                        'Personal',
-                        'School',
-                        'Chore',
-                        'Shopping',
-                      ].map((category) {
+                        'High',
+                        'Medium',
+                        'Low',
+                      ].map((priority) {
                         return DropdownMenuItem(
-                          value: category,
-                          child: Text(category),
+                          value: priority,
+                          child: Text(priority),
                         );
                       }).toList(),
                       onChanged: (value) {
                         if (value != null) {
                           setDialogState(() {
-                            selectedCategory = value;
+                            selectedPriority = value;
                           });
                         }
                       },
                     ),
                     const SizedBox(height: 15),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            selectedDueDate == null
-                                ? 'No due date selected'
-                                : 'Due: ${selectedDueDate!.day}/${selectedDueDate!.month}/${selectedDueDate!.year}',
-                            style: const TextStyle(
-                              color: gray,
-                              fontSize: 13,
-                            ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          selectedDueDate == null
+                              ? 'No due date selected'
+                              : 'Due: ${selectedDueDate!.day}/${selectedDueDate!.month}/${selectedDueDate!.year}',
+                          style: const TextStyle(
+                            color: gray,
+                            fontSize: 13,
                           ),
                         ),
-                        TextButton(
-                          onPressed: () async {
-                            final pickedDate = await showDatePicker(
-                              context: dialogContext,
-                              initialDate: selectedDueDate ?? DateTime.now(),
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime(2100),
-                            );
-
-                            if (pickedDate != null) {
-                              setDialogState(() {
-                                selectedDueDate = pickedDate;
-                              });
-                            }
-                          },
-                          child: const Text('Choose Date'),
-                        ),
-                      ],
-                    ),
-                    if (selectedDueDate != null)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () {
-                            setDialogState(() {
-                              selectedDueDate = null;
-                            });
-                          },
-                          child: const Text('Remove Date'),
-                        ),
                       ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(dialogContext);
-                    },
-                    child: const Text('Cancel'),
+                      TextButton(
+                        onPressed: () async {
+                          final pickedDate = await showDatePicker(
+                            context: dialogContext,
+                            initialDate: selectedDueDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+
+                          if (pickedDate != null) {
+                            setDialogState(() {
+                              selectedDueDate = pickedDate;
+                            });
+                          }
+                        },
+                        child: const Text('Choose Date'),
+                      ),
+                    ],
                   ),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: green,
-                      foregroundColor: Colors.white,
+
+                  if (selectedDueDate != null)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () {
+                          setDialogState(() {
+                            selectedDueDate = null;
+                          });
+                        },
+                        child: const Text('Remove Date'),
+                      ),
                     ),
-                    onPressed: () {
-                      if (titleController.text.trim().isEmpty) {
-                        return;
-                      }
-
-                      final task = Task(
-                        title: titleController.text.trim(),
-                        category: selectedCategory,
-                        dueDate: selectedDueDate,
-                      );
-
-                      Navigator.pop(dialogContext, task);
-                    },
-                    child: const Text('Add Task'),
-                  ),
                 ],
-              );
-            },
-          );
-        },
-      );
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: green,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    if (taskTitle.trim().isEmpty) {
+                      return;
+                    }
 
-      if (newTask != null) {
-        await DatabaseService.instance.insertTask(newTask);
-        await loadTasks();
+                    final task = Task(
+                      title: taskTitle.trim(),
+                      description: taskDescription.trim(),
+                      category: selectedCategory,
+                      dueDate: selectedDueDate,
+                      priority: selectedPriority,
+                    );
 
-        if (!mounted) return;
-        showMessage('Task added successfully!');
-      }
-    } catch (e) {
+                    Navigator.pop(dialogContext, task);
+                  },
+                  child: const Text('Add Task'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (newTask != null) {
+      await DatabaseService.instance.insertTask(newTask);
+      await loadTasks();
+
       if (!mounted) return;
-      showMessage('Unable to add task: $e');
-    } finally {
-      titleController.dispose();
+      showMessage('Task added successfully!');
     }
+  } catch (e) {
+    if (!mounted) return;
+    showMessage('Unable to add task: $e');
   }
+}
 
   // Edit task dialog
   Future<void> showEditTaskDialog(int index) async {
     final task = tasks[index];
-    final titleController = TextEditingController(text: task.title);
+    String editedTitle = task.title;
+    String editedDescription = task.description;
+
     String selectedCategory = task.category;
+    String selectedPriority = task.priority;
     DateTime? selectedDueDate = task.dueDate;
 
     try {
@@ -396,12 +663,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 content: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextField(
-                      controller: titleController,
+                    TextFormField(
+                      initialValue: editedTitle,
                       decoration: const InputDecoration(
                         labelText: 'Task title',
                         border: OutlineInputBorder(),
                       ),
+                      onChanged: (value) {
+                        editedTitle = value;
+                      },
                     ),
                     const SizedBox(height: 15),
                     DropdownButtonFormField<String>(
@@ -430,6 +700,46 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                     ),
                     const SizedBox(height: 15),
+                    TextFormField(
+                      initialValue: editedDescription,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Description (Optional)',
+                        hintText: 'Enter task details...',
+                        border: OutlineInputBorder(),
+                        alignLabelWithHint: true,
+                      ),
+                      onChanged: (value) {
+                        editedDescription = value;
+                      },
+                    ),
+                    const SizedBox(height: 15),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedPriority,
+                      decoration: const InputDecoration(
+                        labelText: 'Priority',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        'High',
+                        'Medium',
+                        'Low',
+                      ].map((priority) {
+                        return DropdownMenuItem(
+                          value: priority,
+                          child: Text(priority),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if(value != null) {
+                          setDialogState(() {
+                            selectedPriority = value;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 15),
+
                     Row(
                       children: [
                         Expanded(
@@ -489,16 +799,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       foregroundColor: Colors.white,
                     ),
                     onPressed: () {
-                      if (titleController.text.trim().isEmpty) {
+                      if (editedTitle.trim().isEmpty) {
                         return;
                       }
 
                       final updatedTask = Task(
                         id: task.id,
-                        title: titleController.text.trim(),
+                        title: editedTitle.trim(),
+                        description: editedDescription.trim(),
                         category: selectedCategory,
                         isComplete: task.isComplete,
                         dueDate: selectedDueDate,
+                        priority: selectedPriority,
                       );
 
                       Navigator.pop(dialogContext, updatedTask);
@@ -522,9 +834,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (!mounted) return;
       showMessage('Unable to update task: $e');
-    } finally {
-      titleController.dispose();
-    }
+    } 
   }
 
   // Task card
@@ -566,12 +876,53 @@ class _HomeScreenState extends State<HomeScreen> {
                         : TextDecoration.none,
                   ),
                 ),
+
                 const SizedBox(height: 5),
+
                 Text(
                   task.category,
                   style: const TextStyle(
                     fontSize: 13,
                     color: gray,
+                  ),
+                ),
+
+                if(task.description.isNotEmpty) ... [
+                  const SizedBox(height: 5),
+                  Text(
+                    task.description,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: gray,
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 7),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: task.priority == 'High'
+                    ? Colors.red.shade50
+                    : task.priority == 'Medium'
+                        ? Colors.orange.shade50
+                        : Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${task.priority} Priority',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: task.priority == 'High'
+                        ? Colors.red
+                        : task.priority == 'Medium'
+                          ? Colors.orange.shade800
+                          : Colors.green.shade700,
+                    ),
                   ),
                 ),
                 if(task.dueDate != null) ...[
@@ -636,6 +987,7 @@ class _HomeScreenState extends State<HomeScreen> {
       category: task.category,
       isComplete: !task.isComplete,
       dueDate: task.dueDate,
+      priority: task.priority,
     );
 
     try {

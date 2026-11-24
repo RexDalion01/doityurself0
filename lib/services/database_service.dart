@@ -24,7 +24,7 @@ class DatabaseService {
 
     return await openDatabase(
       path, 
-      version: 2, 
+      version: 4, 
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
       );
@@ -35,9 +35,11 @@ class DatabaseService {
       CREATE TABLE tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
         category TEXT NOT NULL,
         isComplete INTEGER NOT NULL DEFAULT 0,
         dueDate TEXT
+        priority TEXT NOT NULL DEFAULT 'Medium'
       )
     ''');
   }
@@ -49,6 +51,18 @@ class DatabaseService {
   ) async {
     if (oldVersion < 2) {
       await db.execute('ALTER TABLE tasks ADD COLUMN dueDate TEXT');
+    }
+
+    if(oldVersion < 3) {
+      await db.execute(
+        "ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'Medium'",
+      );
+    }
+
+    if(oldVersion < 4) {
+      await db.execute(
+        "ALTER TABLE tasks ADD COLUMN description TEXT NOT NULL DEFAULT ''",
+      );
     }
   }
 

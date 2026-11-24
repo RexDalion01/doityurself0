@@ -48,7 +48,8 @@ flutter run
 ├── models/
 │   └── task_model.dart
 ├── screens/
-│   └── home_screen.dart
+│   ├── home_screen.dart
+│   └── calendar_screen.dart
 ├── services/
 │   └── database_service.dart
 ├── widgets/
@@ -90,5 +91,26 @@ Taskly - Is to organize your tasks. track your progress, and stay positive.
 
 11/21
 //Added due dates - Made changes on task_model, database_service, and home_screen
+
+11/23
+//Added calendar_screen
+//Modified calendar button in home_screen to gesture detector to be pushable and will lead to calendar_screen
+//DateTime already handles month transitions (when in dec go right it goes to jan 2027)
+//Added Daily Agenda
+//Modified CalendarScreen's Gesture Detector part in home screen to accomodate Daily Agenda
+//Resolved an error when cancelling a task creation in showAddTaskDialog, made it into a string variable instead of a TextEditingController
+//Added Priorities; added priority variables in the modified model, database service, and home_screen()
+
+11/24
+//Added Priority Sorting
+//Made the task list header's incrementing task indicator into a row to accomodate the popupmenubutton used for sorting priority
+//Added optional task descriptions; modified task_model, database_service(3 - 4)
+Removed and replaced controllers on showedittasks to remedy past problem(red screen)
+//Added Statistics, features like 
+total tasks, pending, completion percentage, pending, and completion progress
+Added priority task indication list 
+Changed value in buildstatCard from int to String to accomodate percentage sign in completion rate, also added category filter list
+//changed '${tasks.length} Tasks', to '${sortedTaskIndexes.length} Tasks', so that the task counter updates when searching or filtering.
+
 
 
